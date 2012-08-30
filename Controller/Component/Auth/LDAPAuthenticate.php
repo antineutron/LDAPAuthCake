@@ -22,28 +22,24 @@ class LDAPAuthenticate extends BaseAuthenticate {
         
     }
 
-/**
- * @param CakeRequest $request The request that contains login information.
- * @param CakeResponse $response Unused response object.
- * @return mixed.  False on login failure.  An array of User data on success.
- */
+    /**
+     * @param CakeRequest $request The request that contains login information.
+     * @param CakeResponse $response Unused response object.
+     * @return mixed.  False on login failure.  An array of User data on success.
+     */
     public function authenticate(CakeRequest $request, CakeResponse $response) {
-
-        throw new Exception('Auth');
 
         $user_field = $this->settings['fields']['username'];
         $pass_field = $this->settings['fields']['password'];
 
         // Definitely not authenticated if we haven't got the request data...
         if(!isset($request->data['User'])){
-            throw new Exception('No rq data');
             return false;
         }
 
         // We need both the username and password fields present
         $submitted_details = $request->data['User'];
         if(!isset($submitted_details[$user_field]) || !isset($submitted_details[$pass_field])){
-            throw new Exception('No user or pass');
             return false;
         }
 
@@ -51,7 +47,6 @@ class LDAPAuthenticate extends BaseAuthenticate {
         $username = $submitted_details[$user_field];
         $password = $submitted_details[$pass_field];
         if( !is_string($username) || !is_string($password) ){
-            throw new Exception('Empty user or pass');
             return false;
         }
         
@@ -60,6 +55,7 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
     }
 
+    
     protected function _findUser($username, $password){
         
 
@@ -74,11 +70,14 @@ class LDAPAuthenticate extends BaseAuthenticate {
             throw new CakeException("Could not bind to LDAP authentication server - check your bind DN and password");
         }
 
-        $results = ldap_search($ldap_connection, $this->settings['ldap_base_dn'], $this->settings['ldap_username_field'].'='.$username, array('dn'), 1, 1);
+        // Get the ldap_filter setting and insert the username
+        $ldap_filter = $this->settings['ldap_filter'];
+        $ldap_filter = preg_replace('/%USERNAME%/', $username, $ldap_filter);
+
+        $results = ldap_search($ldap_connection, $this->settings['ldap_base_dn'], $ldap_filter, array('dn'), 1, 1);
 
         // Failed to find user details, not authenticated.
         if(!$results || !ldap_count_entries($ldap_connection, $results)){
-            throw new Exception('Failed to find user in LDAP');
             return false;
         }
 
@@ -90,16 +89,37 @@ class LDAPAuthenticate extends BaseAuthenticate {
         $bind = ldap_bind($ldap_connection, $user_dn, $password);
 
         if(!$bind){
-            throw new Exception('Failed to re-bind');
             return false;
         }
 
         // Now find the user object in the database
+        // NB this is nicked from BaseAuthenticate but without the password check
+        $userModel = $this->settings['userModel'];
+        list($plugin, $model) = pluginSplit($userModel);
 
-        throw new Exception("Authenticated OK as $user_dn");
+        $fields = $this->settings['fields'];
 
-        return false;
-        
+        $conditions = array(
+            $model . '.' . $fields['username'] => $username,
+        );
+
+        if (!empty($this->settings['scope'])) {
+            $conditions = array_merge($conditions, $this->settings['scope']);
+        }
+
+        $result = ClassRegistry::init($userModel)->find('first', array(
+            'conditions' => $conditions,
+            'recursive' => (int)$this->settings['recursive']
+        ));
+
+        if (empty($result) || empty($result[$model])) {
+            // TODO this is where we would auto-create a new user object, if we could...
+            return false;
+        }
+
+        unset($result[$model][$fields['password']]);
+        return $result[$model];
+       
     }
 
 }
