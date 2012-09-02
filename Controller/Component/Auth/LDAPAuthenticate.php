@@ -5,23 +5,6 @@ App::uses('BaseAuthenticate', 'Controller/Component/Auth');
 class LDAPAuthenticate extends BaseAuthenticate {
 
 
-    public function initialize($controller, $settings = array()) {
-    }
-
-    public function startup($controller) {
-        
-    }
-
-    public function beforeRender($controller){
-        
-    }
-    public function beforeRedirect($controller){
-        
-    }
-    public function shutdown($controller){
-        
-    }
-
     /**
      * @param CakeRequest $request The request that contains login information.
      * @param CakeResponse $response Unused response object.
