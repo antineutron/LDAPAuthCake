@@ -68,7 +68,15 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
         // We'll get the DN by default but we also want the useful bits we can map
         // to our own database details
-        $attribs = array_keys($this->settings['ldap_to_user']);
+        $attribs = array();
+        foreach (array_keys($this->settings['ldap_to_user']) as $field){
+            $attribs = array_merge($attribs, preg_split('/\s+/', $field));
+        }
+
+        // If we've got a list of fields to search for their username (or
+        // most likely, email address) details, get all those attributes too
+        $attribs = array_merge($attribs, $this->settings['all_usernames']);
+
 
         // Connect to LDAP server and search for the user object
         $ldap_connection = $this->_ldapConnect();
@@ -93,13 +101,27 @@ class LDAPAuthenticate extends BaseAuthenticate {
         $results = array();
         
         // Get a list of DB fields mapped to values from LDAP
+        // NB fields can now be combined e.g. 'givenName sn', or we may take the supplied
+        // value if the field is set to __SUPPLIED__ (for username field only).
         foreach ($this->settings['ldap_to_user'] as $ldap_field => $db_field){
-            
-            $value = $ldap_user[strtolower($ldap_field)][0];
-            $results[$db_field] = $value;
-            
+
+            // First, if we're using __SUPPLIED__ username, then just use what they gave us
+            if($db_field == $user_field && $ldap_field == '__SUPPLIED__'){
+
+                $results[$db_field] = $username;
+
+            } else{
+
+                // Split on whitespace and pull each field out in turn, then append
+                $value = '';
+                foreach (preg_split('/\s+/', $ldap_field) as $ldap_field){
+                    $value .= $ldap_user[strtolower($ldap_field)][0].' ';
+                }
+                $results[$db_field] = trim($value);
+            }
+
             // If this is the unique username field, overwrite it for lookups.
-            if($db_field == $fields['username']){
+            if($db_field == $user_field){
                 $username = strtolower($value);
             }
         }
@@ -119,10 +141,53 @@ class LDAPAuthenticate extends BaseAuthenticate {
         list($plugin, $model) = pluginSplit($userModel);
         
 
-        // Case-insensitive matching for this...
-        $conditions = array(
-            'LOWER(' . $model . '.' . $fields['username'] . ')' => strtolower($username),
-        );
+        // It's possible we are using a not-quite-unique username field,
+        // such as an email address - one user may have many addresses, but
+        // each one resolves to one user account.  In this case, we should be
+        // given a list of LDAP attributes in all_usernames which we want to
+        // match against.  This means the user can log in with j.bloggs@example.com
+        // or jb3@example.com and we can still find them, no matter which address
+        // we actually store in the database.
+        $comparison = 'LOWER(' . $model . '.' . $fields['username'] . ')';
+
+        if(isset($this->settings['all_usernames']) && is_array($this->settings['all_usernames'])){
+
+            $conditions = array('OR' => array($comparison => array()));
+
+            foreach($this->settings['all_usernames'] as $possible_field){
+                $possible_field = strtolower($possible_field);
+
+                $possible_usernames = $ldap_user[$possible_field];
+
+                foreach ($ldap_user[$possible_field] as $key => $possible_username){
+
+                    // LDAP lookup results always include the count field, skip it
+                    if($key === 'count'){
+                        continue;
+                    }
+
+                    // Special case (blech): proxyAddresses in AD contains email addresses,
+                    // but needs some fudgery to remove the 'protocol:' part
+                    if(strtolower($possible_field) == 'proxyaddresses'){
+                        $possible_username = preg_replace('/^\S+:\s*/', '', $possible_username);
+                    }
+                
+                    $conditions['OR'][$comparison][] = strtolower(trim($possible_username));
+                }
+
+
+            }
+
+            // Unique-ify it for great justice
+            $conditions['OR'][$comparison] = array_unique($conditions['OR'][$comparison]);
+
+        // Only using a single field, so just look that up (case insensitive)
+        } else{
+
+            $conditions = array(
+                $comparison => strtolower($username),
+            );
+        }
 
 
         $db_user = ClassRegistry::init($userModel)->find('first', array(
@@ -136,7 +201,7 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
             $results = array_merge($results, $this->settings['defaults']);
             if (!ClassRegistry::init($userModel)->save($results)) {
-                echo "Failed to save new user\n"; print_r($results); print_r($username);
+///                echo "Failed to save new user\n"; print_r($results); print_r($username);
                 return false;
             }
 
