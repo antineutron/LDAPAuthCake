@@ -10,20 +10,20 @@ class LDAPAuthenticate extends BaseAuthenticate {
  * @throws CakeException
  * @return LDAP connection as per ldap_connect()
  */
-	private function _ldapConnect() {
-		$ldap_connection = ldap_connect($this->settings['ldap_url']);
+	private function __ldapConnect() {
+		$ldapConnection = ldap_connect($this->settings['ldap_url']);
 
-		if (!$ldap_connection) {
+		if (!$ldapConnection) {
 			throw new CakeException("Could not connect to LDAP authentication server");
 		}
 
-		$bind = ldap_bind($ldap_connection, $this->settings['ldap_bind_dn'], $this->settings['ldap_bind_pw']);
+		$bind = ldap_bind($ldapConnection, $this->settings['ldap_bind_dn'], $this->settings['ldap_bind_pw']);
 
 		if (!$bind) {
 			throw new CakeException("Could not bind to LDAP authentication server - check your bind DN and password");
 		}
 
-		return $ldap_connection;
+		return $ldapConnection;
 	}
 
 /**
@@ -37,9 +37,9 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		/// $this->log("[LDAPAuthCake.authenticate] Authentication started", 'ldapauth');
 		$fields = $this->settings['form_fields'];
 
-		$user_field = $fields['username'];
+		$userField = $fields['username'];
 
-		$pass_field = $fields['password'];
+		$passField = $fields['password'];
 
 		// Definitely not authenticated if we haven't got the request data...
 		if (!isset($request->data['User'])) {
@@ -48,30 +48,30 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		}
 
 		// We need to know the username, or email, or some other unique ID
-		$submitted_details = $request->data['User'];
+		$submittedDetails = $request->data['User'];
 
-		if (!isset($submitted_details[$user_field])) {
+		if (!isset($submittedDetails[$userField])) {
 			///	$this->log("[LDAPAuthCake.authenticate] No username supplied, cannot authenticate", 'ldapauth');
 			return false;
 		}
 
 		// Make sure it's a valid string...
-		$username = $submitted_details[$user_field];
+		$username = $submittedDetails[$userField];
 		if (!is_string($username)) {
 			///	$this->log("[LDAPAuthCake.authenticate] Invalid username, cannot authenticate", 'ldapauth');
 			return false;
 		}
 
 		// Make sure they gave us a password too...
-		$password = $submitted_details[$pass_field];
+		$password = $submittedDetails[$passField];
 		if (!is_string($password) || empty($password)) {
 			return false;
 		}
 
 		// Get the ldap_filter setting and insert the username
-		$ldap_filter = $this->settings['ldap_filter'];
+		$ldapFilter = $this->settings['ldap_filter'];
 
-		$ldap_filter = preg_replace('/%USERNAME%/', $username, $ldap_filter);
+		$ldapFilter = preg_replace('/%USERNAME%/', $username, $ldapFilter);
 
 		// We'll get the DN by default but we also want the useful bits we can map
 		// to our own database details
@@ -86,55 +86,55 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		$attribs = array_merge($attribs, $this->settings['all_usernames']);
 
 		// Connect to LDAP server and search for the user object
-		$ldap_connection = $this->_ldapConnect();
+		$ldapConnection = $this->__ldapConnect();
 
-		$results = ldap_search($ldap_connection, $this->settings['ldap_base_dn'], $ldap_filter, $attribs, 0, 1);
+		$results = ldap_search($ldapConnection, $this->settings['ldap_base_dn'], $ldapFilter, $attribs, 0, 1);
 
 		// Failed to find user details, not authenticated.
-		if (!$results || ldap_count_entries($ldap_connection, $results) == 0) {
+		if (!$results || ldap_count_entries($ldapConnection, $results) == 0) {
 			///	$this->log("[LDAPAuthCake.authenticate] Could not find user $username", 'ldapauth');
 			return false;
 		}
 
 		// Got multiple results, sysadmin did something wrong!
-		if (ldap_count_entries($ldap_connection, $results) > 1) {
+		if (ldap_count_entries($ldapConnection, $results) > 1) {
 			///	$this->log("[LDAPAuthCake.authenticate] Multiple LDAP results for $username", 'ldapauth');
 			return false;
 		}
 
 		// Found the user! Get their details
-		$ldap_user = ldap_get_entries($ldap_connection, $results);
+		$ldapUser = ldap_get_entries($ldapConnection, $results);
 
-		$ldap_user = $ldap_user[0];
+		$ldapUser = $ldapUser[0];
 
 		$results = array();
 
 		// Get a list of DB fields mapped to values from LDAP
 		// NB fields can now be combined e.g. 'givenName sn', or we may take the supplied
 		// value if the field is set to __SUPPLIED__ (for username field only).
-		foreach ($this->settings['ldap_to_user'] as $ldap_field => $db_field) {
+		foreach ($this->settings['ldap_to_user'] as $ldapField => $dbField) {
 
 			// First, if we're using __SUPPLIED__ username, then just use what they gave us
-			if ($db_field == $user_field && $ldap_field == '__SUPPLIED__') {
-				$results[$db_field] = $username;
+			if ($dbField == $userField && $ldapField == '__SUPPLIED__') {
+				$results[$dbField] = $username;
 			} else {
 				// Split on whitespace and pull each field out in turn, then append
 				$value = '';
-				foreach (preg_split('/\s+/', $ldap_field) as $ldap_field) {
-					$value .= $ldap_user[strtolower($ldap_field)][0] . ' ';
+				foreach (preg_split('/\s+/', $ldapField) as $ldapField) {
+					$value .= $ldapUser[strtolower($ldapField)][0] . ' ';
 				}
 
-				$results[$db_field] = trim($value);
+				$results[$dbField] = trim($value);
 			}
 
 			// If this is the unique username field, overwrite it for lookups.
-			if ($db_field == $user_field) {
+			if ($dbField == $userField) {
 				$username = strtolower($value);
 			}
 		}
 
 		// Now try to re-bind as that user
-		$bind = ldap_bind($ldap_connection, $ldap_user['dn'], $password);
+		$bind = ldap_bind($ldapConnection, $ldapUser['dn'], $password);
 
 		// If the password didn't work, bomb out
 		if (!$bind) {
@@ -159,12 +159,12 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
 			$conditions = array('OR' => array($comparison => array()));
 
-			foreach ($this->settings['all_usernames'] as $possible_field) {
-				$possible_field = strtolower($possible_field);
+			foreach ($this->settings['all_usernames'] as $possibleField) {
+				$possibleField = strtolower($possibleField);
 
-				$possible_usernames = $ldap_user[$possible_field];
+				$possibleUsernames = $ldapUser[$possibleField];
 
-				foreach ($ldap_user[$possible_field] as $key => $possible_username) {
+				foreach ($ldapUser[$possibleField] as $key => $possibleUsername) {
 					// LDAP lookup results always include the count field, skip it
 					if ($key === 'count') {
 						continue;
@@ -172,11 +172,11 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
 					// Special case (blech): proxyAddresses in AD contains email addresses,
 					// but needs some fudgery to remove the 'protocol:' part
-					if (strtolower($possible_field) == 'proxyaddresses') {
-						$possible_username = preg_replace('/^\S+:\s*/', '', $possible_username);
+					if (strtolower($possibleField) == 'proxyaddresses') {
+						$possibleUsername = preg_replace('/^\S+:\s*/', '', $possibleUsername);
 					}
 
-					$conditions['OR'][$comparison][] = strtolower(trim($possible_username));
+					$conditions['OR'][$comparison][] = strtolower(trim($possibleUsername));
 				}
 			}
 
@@ -191,13 +191,13 @@ class LDAPAuthenticate extends BaseAuthenticate {
 			);
 		}
 
-		$db_user = ClassRegistry::init($userModel)->find('first', array(
+		$dbUser = ClassRegistry::init($userModel)->find('first', array(
 			'conditions' => $conditions,
 			'recursive'	=> false
 		));
 
 		// If we couldn't find them in the database, create a new DB entry
-		if (empty($db_user) || empty($db_user[$model])) {
+		if (empty($dbUser) || empty($dbUser[$model])) {
 			///	$this->log("[LDAPAuthCake.authenticate] Could not find a database entry for $username", 'ldapauth');
 
 			$results = array_merge($results, $this->settings['defaults']);
@@ -207,14 +207,14 @@ class LDAPAuthenticate extends BaseAuthenticate {
 			}
 
 			$id = ClassRegistry::init($userModel)->getLastInsertID();
-			$db_user = ClassRegistry::init($userModel)->findById($id);
+			$dbUser = ClassRegistry::init($userModel)->findById($id);
 		}
 
 		// Ensure there's nothing in the password field
-		unset($db_user[$model][$fields['password']]);
+		unset($dbUser[$model][$fields['password']]);
 
 		// ...and return the user object.
-		return $db_user[$model];
+		return $dbUser[$model];
 	}
 
 }
