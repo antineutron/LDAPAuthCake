@@ -88,7 +88,8 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		// Connect to LDAP server and search for the user object
 		$ldapConnection = $this->__ldapConnect();
 
-		$results = ldap_search($ldapConnection, $this->settings['ldap_base_dn'], $ldapFilter, $attribs, 0, 1);
+		// Suppress warning when no object found
+		$results = @ldap_search($ldapConnection, $this->settings['ldap_base_dn'], $ldapFilter, $attribs, 0, 1);
 
 		// Failed to find user details, not authenticated.
 		if (!$results || ldap_count_entries($ldapConnection, $results) == 0) {
