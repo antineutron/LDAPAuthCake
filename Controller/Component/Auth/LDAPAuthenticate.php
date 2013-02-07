@@ -11,13 +11,13 @@ class LDAPAuthenticate extends BaseAuthenticate {
  * @return LDAP connection as per ldap_connect()
  */
 	private function __ldapConnect() {
-		$ldapConnection = ldap_connect($this->settings['ldap_url']);
+		$ldapConnection = @ldap_connect($this->settings['ldap_url']);
 
 		if (!$ldapConnection) {
 			throw new CakeException("Could not connect to LDAP authentication server");
 		}
 
-		$bind = ldap_bind($ldapConnection, $this->settings['ldap_bind_dn'], $this->settings['ldap_bind_pw']);
+		$bind = @ldap_bind($ldapConnection, $this->settings['ldap_bind_dn'], $this->settings['ldap_bind_pw']);
 
 		if (!$bind) {
 			throw new CakeException("Could not bind to LDAP authentication server - check your bind DN and password");
@@ -135,7 +135,7 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		}
 
 		// Now try to re-bind as that user
-		$bind = ldap_bind($ldapConnection, $ldapUser['dn'], $password);
+		$bind = @ldap_bind($ldapConnection, $ldapUser['dn'], $password);
 
 		// If the password didn't work, bomb out
 		if (!$bind) {
