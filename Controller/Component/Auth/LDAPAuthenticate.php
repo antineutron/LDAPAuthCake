@@ -130,7 +130,7 @@ class LDAPAuthenticate extends BaseAuthenticate {
 
 			// If this is the unique username field, overwrite it for lookups.
 			if ($dbField == $userField) {
-				$username = strtolower($value);
+				$username = strtolower($results[$dbField]);
 			}
 		}
 
