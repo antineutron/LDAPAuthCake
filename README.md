@@ -14,7 +14,6 @@ Limitations
 -----------
 
 * Cannot use multiple LDAP servers (for failover)
-* Currently cannot store the auth settings in a config file
 
 Usage
 -----
@@ -81,3 +80,36 @@ $components = array(
     ),
     ...
 );
+
+Ideally you should put the connection details in your site's configuration file/database. In this case,
+you'll want to do something like this in the beforeFilter:
+
+// ...Load configuration first...
+
+$ldap_config = array(
+	// Get connection details from config
+	'ldap_url'          => $this->site_config['ldap_url'],
+	'ldap_bind_dn'      => $this->site_config['ldap_bind_dn'],
+	'ldap_bind_pw'      => $this->site_config['ldap_bind_pw'],
+	'ldap_base_dn'      => $this->site_config['ldap_base_dn'],
+	'ldap_filter'       => $this->site_config['ldap_filter'],
+	'ldap_to_user'      => array(
+	    $this->site_config['ldap_email_field'] => 'email',
+	    $this->site_config['ldap_name_field']  => 'name',
+	),
+
+	// You may want to do this in the config too
+	'all_usernames' => array(
+	    'proxyAddresses',
+	    'mail',
+	),
+
+	// These are specific to your particular website, so do not really need to be in a config file
+	'form_fields'       => array ('username' => 'email', 'password' => 'password'),
+	'defaults'      => array(
+	    'is_active' => 1,
+	    'is_admin'  => 0,
+	)
+);
+
+$this->Auth->authenticate = array('LDAPAuthCake.LDAP' => $ldap_config);
