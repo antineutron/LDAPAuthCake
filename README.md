@@ -20,6 +20,8 @@ Usage
 
 In your AppController, where you're setting up authentication, you want something like:
 
+<pre lang="php">
+
 $components = array(
     ...
     'Auth' => array(
@@ -81,9 +83,12 @@ $components = array(
     ...
 );
 
+</pre>
+
 Ideally you should put the connection details in your site's configuration file/database. In this case,
 you'll want to do something like this in the beforeFilter:
 
+<pre lang="php">
 // ...Load configuration first...
 
 $ldap_config = array(
@@ -113,3 +118,5 @@ $ldap_config = array(
 );
 
 $this->Auth->authenticate = array('LDAPAuthCake.LDAP' => $ldap_config);
+
+</pre>
