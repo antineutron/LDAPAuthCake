@@ -42,14 +42,13 @@ class LDAPAuthenticate extends BaseAuthenticate {
 		$passField = $fields['password'];
 
 		// Definitely not authenticated if we haven't got the request data...
-		if (!isset($request->data['User'])) {
+		if (!isset($request->data[$this->settings['userModel']])) {
 			///	$this->log("[LDAPAuthCake.authenticate] No request data, cannot authenticate", 'ldapauth');
 			return false;
 		}
 
 		// We need to know the username, or email, or some other unique ID
-		$submittedDetails = $request->data['User'];
-
+		$submittedDetails = $request->data[$this->settings['userModel']];
 		if (!isset($submittedDetails[$userField])) {
 			///	$this->log("[LDAPAuthCake.authenticate] No username supplied, cannot authenticate", 'ldapauth');
 			return false;
